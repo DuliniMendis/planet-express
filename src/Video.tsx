@@ -65,6 +65,7 @@ class Video extends React.Component <IVideoProps, IVideoState> {
       sourceBuffer.addEventListener('updateend', () => this.onUpdateEnd())
 
       sourceBuffer.mode = 'segment'
+      this.state.mediaSource.duration = 110
       this.updateChunk(0, this.props.chunks)
     }
   }
@@ -83,7 +84,10 @@ class Video extends React.Component <IVideoProps, IVideoState> {
         this.updateChunk(chunk.iChunk, this.props.chunks)
       })
     }
-
+    console.log(this.state.mediaSource.sourceBuffers[0].updating)
+    if (!this.state.mediaSource.sourceBuffers[0].updating) {
+      // this.state.mediaSource.endOfStream()
+    }
   }
 
   handleTimeUpdate (evt: any) {

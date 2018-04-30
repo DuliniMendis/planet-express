@@ -1,7 +1,7 @@
 import * as React from 'react'
 import './App.css'
 import { getChunk } from './dataRequests'
-import Timeline from './Timeline'
+// import Timeline from './Timeline'
 import Video from './Video'
 
 const url = 'https://s3-ap-southeast-2.amazonaws.com/dulini-test/bunny'
@@ -31,36 +31,34 @@ class App extends React.Component<{}, IAppState> {
     this.getChunk(iChunk)
   }
 
-  handleSlider (evt: any) {
-    console.log(evt.target.value)
-    const time = evt.target.value
-    this.setState({
-      currentTime: time,
-      playerTime: time,
-    }, () => {
-      this.updateChunks(time)
-    })
-  }
+  // handleSlider (evt: any) {
+  //   const time = evt.target.value
+  //   this.setState({
+  //     currentTime: time,
+  //     playerTime: time,
+  //   }, () => {
+  //     this.updateChunks(time)
+  //   })
+  // }
 
   handleVideo (time: number) {
    this.setState({ playerTime: time })
  }
 
-  async updateChunks(time: number) {
-    const iChunk = Math.floor(time / chunkPeriod)
-    if (!this.state.chunks[iChunk]) {
-      console.log('UPDATE CHUNK ', iChunk)
-      this.setState({
-        currentTime: time,
-        playerTime: time,
-        lastUpdatedChunk: iChunk,
-      }, () => {
-        if (iChunk < 10) {
-          this.getChunk(iChunk)
-        }
-      })
-    }
-  }
+  // async updateChunks(time: number) {
+  //   const iChunk = Math.floor(time / chunkPeriod)
+  //   if (!this.state.chunks[iChunk]) {
+  //     this.setState({
+  //       currentTime: time,
+  //       playerTime: time,
+  //       lastUpdatedChunk: iChunk,
+  //     }, () => {
+  //       if (iChunk < 10) {
+  //         this.getChunk(iChunk)
+  //       }
+  //     })
+  //   }
+  // }
 
   async getChunk(iChunk: number) {
     const chunk = await getChunk(`${url}${iChunk}.mp4`)
@@ -76,9 +74,9 @@ class App extends React.Component<{}, IAppState> {
     })
   }
 
-  togglePlay() {
-    this.setState({ isPlaying: !this.state.isPlaying })
-  }
+  // togglePlay() {
+  //   this.setState({ isPlaying: !this.state.isPlaying })
+  // }
 
   render() {
 
@@ -95,13 +93,13 @@ class App extends React.Component<{}, IAppState> {
           lastUpdatedChunk={this.state.lastUpdatedChunk}
           handleVideo={(time: number) => this.handleVideo(time)}
         />}
-        <Timeline
+        {/* <Timeline
           startTime={this.state.startTime}
           endTime={this.state.endTime}
           currentTime={this.state.playerTime}
           handleSlider={(evt: any) => this.handleSlider(evt)}
           togglePlay={() => this.togglePlay()}
-        />
+        /> */}
       </div>
     )
   }
