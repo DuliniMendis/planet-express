@@ -1,127 +1,105 @@
 import * as React from 'react'
 
-declare const WebKitMediaSource: any
-
 class Video extends React.Component <IVideoProps, IVideoState> {
 
   private video: HTMLVideoElement | null
+  private mediaSource: any
 
   constructor(props: IVideoProps) {
     super(props)
     this.state = {
-      mediaSource: new MediaSource(),
-      iChunk: 0,
-      updated: false,
-      buffer: [],
-    }
-
-  }
-
-  componentWillReceiveProps(props: IVideoProps) {
-    // if (this.props.currentTime !== props.currentTime) {
-    //   if (this.video && props.chunks && Math.abs(props.currentTime - this.video.currentTime) >= 1) {
-    // //     // this is for when you skip somewhere but the buffer already has those chunks
-    //      this.video.currentTime = props.currentTime
-    //    }
-    // //   this.setState({ updated: false }, () => this.updateChunk(0))
-    // }
-    console.log(props.chunks)
-    if (this.video) {
-      if (props.isPlaying) {
-        console.log('play')
-        this.video.play()
-      } else {
-        this.video.pause()
-      }
-    }
-    if (this.props.chunks !== props.chunks) {
-      this.updateChunk(props.lastUpdatedChunk, props.chunks)
+      unappendedChunks: [], // for keeping chunks that still need to be appended
     }
   }
 
   componentDidMount() {
     if (this.video) {
-      // this.Video.addEventListener('timeupdate', () => this.handleTimeUpdate(this.Video))
-      this.video.src = window.URL.createObjectURL(this.state.mediaSource) // blob URL pointing to the MediaSource.
-      this.video.addEventListener('timeupdate', (e: any) => this.handleTimeUpdate(e))
+      this.mediaSource = new MediaSource() // make  a new media source
+      this.video.src = window.URL.createObjectURL(this.mediaSource) // blob URL pointing to the MediaSource.
+
+      // add event listeners
+      this.video.addEventListener('play', () => this.props.togglePlay())
+      this.video.addEventListener('pause', () => this.props.togglePlay())
+      this.video.addEventListener('seeking', (e: any) => this.handleSeeking(e))
     }
-    if (this.state.mediaSource.sourceBuffers.length === 0) {
-      this.state.mediaSource.addEventListener('sourceopen', (e: any) => this.onSourceOpen(e), false)
-    }
+    this.mediaSource.addEventListener('sourceopen', (e: any) => this.onSourceOpen(e), false)
   }
 
-  componentWillUnmount() {
-    this.video = null
-  }
-
-  hasMediaSource() {
-    return !!(MediaSource || WebKitMediaSource as MediaSource)
+  componentWillReceiveProps(props: IVideoProps) {
+    if (this.video) {
+      if (props.isPlaying) { // toggle play and pause
+        this.video.play()
+      } else {
+        this.video.pause()
+      }
+    }
+    if (this.props.chunks !== props.chunks) { // if there are new chunks, update the sourceBuffer
+      this.updateChunk(props.lastUpdatedChunk, props.chunks)
+    }
   }
 
   onSourceOpen(e: Event) {
-    if (this.state.mediaSource.sourceBuffers.length === 0) {
+    if (this.mediaSource.sourceBuffers.length === 0) {
+      // add a source buffer with a specific MIME type
       const mimeType = 'video/mp4; codecs="avc1.42E01E, mp4a.40.2"'
-      const sourceBuffer = this.state.mediaSource.addSourceBuffer(mimeType)
+      const sourceBuffer = this.mediaSource.addSourceBuffer(mimeType)
+      sourceBuffer.mode = 'segments' // for add chunks at specific time offsets
+
+      // add event listeners
       sourceBuffer.addEventListener('updateend', () => this.onUpdateEnd())
 
-      sourceBuffer.mode = 'segment'
-      this.state.mediaSource.duration = 110
+      // add a duration to the media source
+      this.mediaSource.duration = this.props.duration
+
       this.updateChunk(0, this.props.chunks)
     }
   }
 
   onUpdateEnd () {
     console.log('on update end')
-    if (this.video) {
-      if (this.video.error) {
-        console.log(this.video.error)
-      }
-    }
-    if (this.state.buffer.length > 0) {
-      const buffer = this.state.buffer.map((b) => b)
-      const chunk = buffer.shift()
-      this.setState({ buffer }, () => {
+    // add leftover chunks in the unappendedChunks list
+    if (this.state.unappendedChunks.length > 0) {
+      const unappendedChunks = this.state.unappendedChunks.map((b) => b)
+      const chunk = unappendedChunks.shift()
+      this.setState({ unappendedChunks }, () => {
         this.updateChunk(chunk.iChunk, this.props.chunks)
       })
-    }
-    console.log(this.state.mediaSource.sourceBuffers[0].updating)
-    if (!this.state.mediaSource.sourceBuffers[0].updating) {
-      // this.state.mediaSource.endOfStream()
-    }
-  }
-
-  handleTimeUpdate (evt: any) {
-    if (this.video) {
-      console.log(this.video.currentTime, this.video.duration)
-      // this.props.handleVideo(this.video.currentTime)
     }
   }
 
   async updateChunk (iChunk: number, chunks: any[]) {
     if (chunks[iChunk]) {
-      console.log('video update chunk', iChunk)
+      console.log('updating chunk', iChunk)
       try {
-        this.state.mediaSource.sourceBuffers[0].timestampOffset = iChunk * 10
-        this.state.mediaSource.sourceBuffers[0].appendBuffer(chunks[iChunk])
+        // add chunk at specific time offset
+        this.mediaSource.sourceBuffers[0].timestampOffset = iChunk * this.props.chunkPeriod
+        this.mediaSource.sourceBuffers[0].appendBuffer(chunks[iChunk])
         console.log('added chunk', iChunk)
       } catch {
-        console.log('error when adding chunk', iChunk)
-        const buffer = this.state.buffer.map((b) => b)
-        buffer.push({
+        // add chunks with errors to the unappendedChunks list
+        console.log('error while adding chunk', iChunk)
+        const unappendedChunk = {
           iChunk,
           chunk: chunks[iChunk],
-        })
-        this.setState({ buffer })
+        }
+        this.setState({ unappendedChunks: [...this.state.unappendedChunks, unappendedChunk] })
       }
     }
+ }
+
+ handleSeeking(e: any) {
+   if (this.video) {
+     console.log('seeking', this.video.currentTime)
+     this.props.handleSkip(this.video.currentTime) // request the chunk at this time
+   }
  }
 
   render() {
     return (
       <div>
         <video
-          width="480"
-          ref={(ref) => {
+          id="video"
+          ref={(ref) => { // create a reference to the video element
             this.video = ref
           }}
           controls={true}
@@ -132,19 +110,17 @@ class Video extends React.Component <IVideoProps, IVideoState> {
 }
 
 export interface IVideoProps {
-  currentTime: number
   chunks: any[]
   chunkPeriod: number
+  duration: number
   isPlaying: boolean
   lastUpdatedChunk: number
-  handleVideo: (time: number) => void
+  handleSkip: (iChunk: number) => void
+  togglePlay: () => void
 }
 
 export interface IVideoState {
-  mediaSource: any
-  iChunk: number
-  updated: boolean
-  buffer: any[]
+  unappendedChunks: any[]
 }
 
 export default Video

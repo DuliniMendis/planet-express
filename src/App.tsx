@@ -1,118 +1,107 @@
 import * as React from 'react'
 import './App.css'
 import { getChunk } from './dataRequests'
-// import Timeline from './Timeline'
 import Video from './Video'
 
 const url = 'https://s3-ap-southeast-2.amazonaws.com/dulini-test/bunny'
-const chunkPeriod = 10
+const chunkPeriod = 10 // seconds
+const duration = 110 // seconds
 
-class App extends React.Component<{}, IAppState> {
+class App extends React.Component<IAppProps, IAppState> {
 
-  constructor() {
-    super({})
+  constructor(props: IAppProps) {
+    super(props)
     this.state = {
-      playerTime: 0,
-      currentTime: 0,
-      startTime: 0,
-      endTime: chunkPeriod * 10,
-      chunks: [],
+      chunks: [], // array of video chunks
       isPlaying: false,
       lastUpdatedChunk: 0,
+      skip: false, // variable to keep track of progressive downloads and user-requested downloads
     }
   }
 
   componentDidMount() {
-    this.setup()
+    this.getChunk(0)
   }
 
-  async setup() {
-    const iChunk = Math.floor(this.state.currentTime / chunkPeriod)
-    this.getChunk(iChunk)
-  }
-
-  // handleSlider (evt: any) {
-  //   const time = evt.target.value
-  //   this.setState({
-  //     currentTime: time,
-  //     playerTime: time,
-  //   }, () => {
-  //     this.updateChunks(time)
-  //   })
-  // }
-
-  handleVideo (time: number) {
-   this.setState({ playerTime: time })
- }
-
-  // async updateChunks(time: number) {
-  //   const iChunk = Math.floor(time / chunkPeriod)
-  //   if (!this.state.chunks[iChunk]) {
-  //     this.setState({
-  //       currentTime: time,
-  //       playerTime: time,
-  //       lastUpdatedChunk: iChunk,
-  //     }, () => {
-  //       if (iChunk < 10) {
-  //         this.getChunk(iChunk)
-  //       }
-  //     })
-  //   }
-  // }
-
-  async getChunk(iChunk: number) {
-    const chunk = await getChunk(`${url}${iChunk}.mp4`)
-    const newChunks = this.state.chunks.map((c) => c)
-    newChunks[iChunk] = chunk
-    this.setState({
-      chunks: newChunks,
-      lastUpdatedChunk: iChunk,
-    }, () => {
-      if (iChunk < 10) {
-        this.getChunk(iChunk + 1)
-      }
+  // when the user requests a chunk at specific time
+  handleSkip(time: number) {
+    const iChunk = Math.floor(time / chunkPeriod)
+    this.setState({ skip: true }, () => {
+      this.getChunk(iChunk)
     })
   }
 
-  // togglePlay() {
-  //   this.setState({ isPlaying: !this.state.isPlaying })
-  // }
+  async getChunk(iChunk: number) {
+    if (!this.state.chunks[iChunk]) { // only fetch if not already in state
+
+      const chunk = await getChunk(`${url}${iChunk}.mp4`)
+
+      if (this.state.skip && this.state.lastUpdatedChunk !== iChunk - 1) { // if it's a skip request
+        // turn off skip and update chunk array
+        console.log('skip to time and update')
+        const newChunks = this.state.chunks.map((c) => c)
+        newChunks[iChunk] = chunk
+        this.setState({
+          chunks: newChunks,
+          lastUpdatedChunk: iChunk,
+          skip: false,
+        }, () => {
+          if (iChunk < 10) {
+            this.getChunk(iChunk + 1)
+          }
+        })
+      }
+      if (
+        (!this.state.skip && this.state.lastUpdatedChunk === iChunk - 1 ) || // if it's progressive downloading
+        (this.state.lastUpdatedChunk === 0) // or if it's the very first chunk
+      ) {
+        // just update the chunk array
+        console.log('progressive update')
+        const newChunks = this.state.chunks.map((c) => c)
+        newChunks[iChunk] = chunk
+        this.setState({
+          chunks: newChunks,
+          lastUpdatedChunk: iChunk,
+        }, () => {
+          if (iChunk < 10) {
+            this.getChunk(iChunk + 1)
+          }
+        })
+      }
+    }
+  }
+
+  // toggle play and pause
+  togglePlay() {
+    this.setState({ isPlaying: !this.state.isPlaying })
+  }
 
   render() {
-
     return (
       <div className="App">
-        <header className="App-header">
-          <h1 className="App-title">Media Player</h1>
-        </header>
-        {this.state.chunks[0] && <Video
-          currentTime={this.state.currentTime}
+        <img id="tv" src="tvFrame.png"/>
+        <Video
           chunks={this.state.chunks}
           chunkPeriod={chunkPeriod}
+          duration={duration}
           isPlaying={this.state.isPlaying}
           lastUpdatedChunk={this.state.lastUpdatedChunk}
-          handleVideo={(time: number) => this.handleVideo(time)}
-        />}
-        {/* <Timeline
-          startTime={this.state.startTime}
-          endTime={this.state.endTime}
-          currentTime={this.state.playerTime}
-          handleSlider={(evt: any) => this.handleSlider(evt)}
+          handleSkip={(iChunk: number) => this.handleSkip(iChunk)}
           togglePlay={() => this.togglePlay()}
-        /> */}
+        />
       </div>
     )
   }
 }
 
 interface IAppState {
-  playerTime: number
-  currentTime: number
-  startTime: number
-  endTime: number
   chunks: any[]
   isPlaying: boolean
   lastUpdatedChunk: number
+  skip: boolean
+}
+
+interface IAppProps {
 }
 
 export default App
